@@ -2,22 +2,22 @@ name: Bug report
 description: Report bugs to improve the plugin
 title: "[Bug] Describe the bug you found"
 labels: ["bug"]
-assignees: ["UTF-8s", "zsTree0830"]
+assignees: ["UTF-8s", "zsTree0830", "a-small-OIer"]
 
 body:
 - type: markdown
   attributes:
-    value: "We're glad you're here! Please fill out the form below to report a bug for the Luogu Display Better plugin:"
+    value: "We're glad you're here! Please fill out the form below to report a bug for the Custom Luogu Background plugin:"
 - type: checkboxes
   id: confirm
   attributes:
     label: Checklist
     options:
-    - label: I have confirmed that the Luogu Display Better plugin is the latest version.
+    - label: I have confirmed that the Custom Luogu Background plugin is the latest version.
       required: true
     - label: This bug has not been fixed in the latest version.
       required: true
-    - label: I have searched the [issues](https://github.com/zsTree0830/Luogu-Display-Better/issues) and confirmed that this bug has not been reported.
+    - label: I have searched the [issues](https://github.com/Luogu-Plugins/Custom-Luogu-Background/issues) and confirmed that this bug has not been reported.
       required: true
     - label: I am working on fixing this issue.
       required: false
