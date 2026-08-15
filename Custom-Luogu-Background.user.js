@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         洛谷 - 自定义背景
 // @namespace    https://www.luogu.com.cn/
-// @version      7.3.3
-// @description  多背景随机切换（图片/视频），视频循环可控；透明度/滤镜调节，面板折叠，专栏全透+毛玻璃，编辑页排除，弹窗保真，点击缩略图切换背景，随机开关。
+// @version      7.3.5
+// @description  为你的洛谷自定义背景！
 // @author       a_small_OIer
 // @license      MIT
 // @match        https://www.luogu.com.cn/*
@@ -89,8 +89,13 @@
             r.readAsArrayBuffer(blob);
         });
     }
-    function buf2url(buf , mime){
-        return URL.createObjectURL(new Blob([buf] , { type: mime }));
+    // 根据存储的数据生成 URL。图片存储 Data URL 字符串，视频存储 ArrayBuffer
+    function media2url(media) {
+        if (media.type === 'image' && typeof media.data === 'string') {
+            return media.data; // Data URL
+        }
+        // 视频或旧版 ArrayBuffer 图片
+        return URL.createObjectURL(new Blob([media.data] , { type: media.mime }));
     }
     const DEFAULTS = {
         blur: 0 , navOpacity: 0.82 , cardOpacity: 0.88 , footerOpacity: 0.70 ,
@@ -192,7 +197,7 @@
         if(oldVid)
             oldVid.remove();
         try{
-            const url = buf2url(media.data , media.mime);
+            const url = media2url(media);
             if(media.type === 'image'){
                 inner.style.backgroundImage = `url(${url})`;
             }else if(media.type === 'video'){
@@ -258,7 +263,7 @@
             return;
         await dbUpdate(selectedId , { lastUsed: now });
         try{
-            const url = buf2url(media.data , media.mime);
+            const url = media2url(media);
             if(media.type === 'image'){
                 inner.style.backgroundImage = `url(${url})`;
             }else if(media.type === 'video'){
@@ -307,8 +312,8 @@
                 return;
             toast('start');
             try{
-                const buf = await blob2buf(f);
                 if(f.type.startsWith('video/')){
+                    const buf = await blob2buf(f);
                     const count = (await dbAllMedia()).length;
                     if(count >= MAX){
                         alert(`最多只能添加 ${MAX} 个媒体`);
@@ -364,9 +369,9 @@
                     }
                     const maxW = Math.min(2560 , innerWidth * 2) , maxH = Math.round(maxW / aspect);
                     const canvas = cropper.getCroppedCanvas({ maxWidth: maxW , maxHeight: maxH , fillColor: '#fff' , imageSmoothingQuality: 'high' });
-                    const blob = await new Promise(res => canvas.toBlob(res , 'image/webp' , 0.9));
-                    const buf = await blob2buf(blob);
-                    await dbAdd({ type: 'image' , mime: 'image/webp' , data: buf , lastUsed: 0 });
+                    // 直接生成 JPEG Data URL，稳定可靠
+                    const dataUrl = canvas.toDataURL('image/jpeg' , 0.85);
+                    await dbAdd({ type: 'image' , data: dataUrl , lastUsed: 0 });
                     const s = loadSettings();
                     await apply(s);
                     refreshPanel();
@@ -388,14 +393,14 @@
         try{
             const res = await fetch(url);
             const blob = await res.blob();
-            const buf = await blob2buf(blob);
-            const count = (await dbAllMedia()).length;
-            if(count >= MAX){
-                alert(`最多只能添加 ${MAX} 个媒体`);
-                toast('done');
-                return;
-            }
             if(blob.type.startsWith('video/')){
+                const buf = await blob2buf(blob);
+                const count = (await dbAllMedia()).length;
+                if(count >= MAX){
+                    alert(`最多只能添加 ${MAX} 个媒体`);
+                    toast('done');
+                    return;
+                }
                 await dbAdd({ type: 'video' , mime: blob.type , data: buf , loop: true , lastUsed: 0 });
                 const s = loadSettings();
                 await apply(s);
@@ -418,7 +423,7 @@
         let list = '';
         if(cnt){
             const items = allMedia.map(m => {
-                const url = buf2url(m.data , m.mime);
+                const url = media2url(m);
                 if(m.type === 'image'){
                     return `<div class="bg-image-item" data-id="${m.id}"><img src="${url}"><button class="delete-btn" data-delete="${m.id}">×</button></div>`;
                 }
@@ -481,7 +486,7 @@
             return;
         }
         list.innerHTML = allMedia.map(m => {
-            const url = buf2url(m.data , m.mime);
+            const url = media2url(m);
             if(m.type === 'image'){
                 return `<div class="bg-image-item" data-id="${m.id}"><img src="${url}"><button class="delete-btn" data-delete="${m.id}">×</button></div>`;
             }
