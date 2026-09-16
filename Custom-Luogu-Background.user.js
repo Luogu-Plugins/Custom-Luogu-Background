@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         洛谷 - 自定义背景
-// @namespace    https://www.luogu.com.cn/
-// @version      8.1.0
+// @namespace    https://www.luogu.com.cn/user/1523280
+// @version      8.2.0
 // @description  为你的洛谷自定义背景！
 // @author       a_small_OIer
 // @license      MIT
@@ -11,12 +11,21 @@
 // @grant        GM_setValue
 // @require      https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.12/cropper.min.js
 // @run-at       document-idle
+// @icon         https://fecdn.luogu.com.cn/favicon.ico
 // ==/UserScript==
 
 (function () {
     'use strict';
 
     const DB_NAME = 'LuoguBgDB', STORE_NAME = 'media';
+    const MAX = 30;
+    const DEFAULTS = {
+        blur: 0, navOpacity: 0.82, cardOpacity: 0.88, footerOpacity: 0.70,
+        bgBrightness: 1.0, bgSaturation: 1.0,
+        articleTransparent: true, globalGlass: false,
+        randomBg: true, currentBgId: null,
+        enableBgLayer: true, panelCollapsed: false
+    };
 
     function openDB() {
         return new Promise((resolve, reject) => {
@@ -31,23 +40,19 @@
             r.onerror = e => reject(e.target.error);
         });
     }
-
     async function dbAdd(media) {
         const db = await openDB(), tx = db.transaction(STORE_NAME, 'readwrite'), store = tx.objectStore(STORE_NAME), req = store.add(media);
         return new Promise((res, rej) => { tx.oncomplete = () => res(req.result); tx.onerror = rej; req.onerror = rej; });
     }
-
     async function dbGet(id) {
         const db = await openDB(), tx = db.transaction(STORE_NAME, 'readonly'), store = tx.objectStore(STORE_NAME), req = store.get(Number(id));
         return new Promise((res, rej) => { req.onsuccess = () => res(req.result); req.onerror = rej; });
     }
-
     async function dbDelete(id) {
         const db = await openDB(), tx = db.transaction(STORE_NAME, 'readwrite'), store = tx.objectStore(STORE_NAME);
         store.delete(Number(id));
         return new Promise((res, rej) => { tx.oncomplete = res; tx.onerror = rej; });
     }
-
     async function dbClear() {
         const db = await openDB(), tx = db.transaction(STORE_NAME, 'readwrite'), store = tx.objectStore(STORE_NAME);
         store.clear();
@@ -58,10 +63,7 @@
         const getReq = store.get(Number(id));
         getReq.onsuccess = () => {
             const m = getReq.result;
-            if (m) {
-                Object.assign(m, updates);
-                store.put(m);
-            }
+            if (m) { Object.assign(m, updates); store.put(m); }
         };
         return new Promise((res, rej) => { tx.oncomplete = res; tx.onerror = rej; });
     }
@@ -77,11 +79,10 @@
             r.readAsArrayBuffer(blob);
         });
     }
+
     const urlCache = new Map();
     function media2url(media) {
-        if (media.type === 'image' && typeof media.data === 'string') {
-            return media.data; // Data URL，直接返回
-        }
+        if (media.type === 'image' && typeof media.data === 'string') return media.data;
         if (urlCache.has(media.id)) return urlCache.get(media.id);
         const url = URL.createObjectURL(new Blob([media.data], { type: media.mime }));
         urlCache.set(media.id, url);
@@ -89,24 +90,13 @@
     }
     function revokeURL(id) {
         const url = urlCache.get(id);
-        if (url) {
-            try { URL.revokeObjectURL(url); } catch (_) {}
-            urlCache.delete(id);
-        }
+        if (url) { try { URL.revokeObjectURL(url); } catch (_) {} urlCache.delete(id); }
     }
     function revokeAllURL() {
         urlCache.forEach(url => { try { URL.revokeObjectURL(url); } catch (_) {} });
         urlCache.clear();
     }
 
-    const DEFAULTS = {
-        blur: 0, navOpacity: 0.82, cardOpacity: 0.88, footerOpacity: 0.70,
-        bgBrightness: 1.0, bgSaturation: 1.0,
-        articleTransparent: true, globalGlass: false,
-        randomBg: true, currentBgId: null,
-        enableBgLayer: true, panelCollapsed: false
-    };
-    const MAX = 30;
     function loadSettings() {
         const s = {};
         for (const [k, d] of Object.entries(DEFAULTS)) {
@@ -119,6 +109,7 @@
         Object.entries(s).forEach(([k, v]) => GM_setValue(k, v));
     }
     const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+
     let saving = false;
     function toast(status) {
         let el = document.getElementById('luogu-upload-toast');
@@ -130,43 +121,41 @@
         }
         if (status === 'start') {
             saving = true;
-            el.textContent = '保存中… 请勿离开';
+            el.textContent = '⏳ 保存中… 请勿离开';
             el.style.background = '#e67e22';
             el.style.opacity = '1';
         } else if (status === 'done') {
             saving = false;
-            el.textContent = '已保存';
+            el.textContent = '✅ 已保存';
             el.style.background = '#2ecc71';
             el.style.opacity = '1';
-            setTimeout(() => { if (el.textContent === '已保存') el.style.opacity = '0'; }, 2000);
+            setTimeout(() => { if (el.textContent === '✅ 已保存') el.style.opacity = '0'; }, 2000);
         }
     }
     addEventListener('beforeunload', e => {
         if (saving) { e.preventDefault(); e.returnValue = '保存中背景图，离开将丢失背景'; }
     });
+
     function injectStyles() {
         GM_addStyle(`
-/* cropper 基础样式 */
 .cropper-container{direction:ltr;font-size:0;line-height:0;position:relative;touch-action:none;user-select:none}.cropper-container img{display:block;height:100%;image-orientation:0deg;max-height:none!important;max-width:none!important;min-height:0!important;min-width:0!important;width:100%}.cropper-wrap-box,.cropper-canvas,.cropper-drag-box,.cropper-crop-box,.cropper-modal{bottom:0;left:0;position:absolute;right:0;top:0}.cropper-wrap-box,.cropper-canvas{overflow:hidden}.cropper-drag-box{background-color:#fff;opacity:0}.cropper-modal{background-color:#000;opacity:.5}.cropper-view-box{display:block;height:100%;outline:1px solid #39f;outline-color:rgba(51,153,255,.75);overflow:hidden;width:100%}.cropper-dashed{border:0 dashed #eee;display:block;opacity:.5;position:absolute}.cropper-dashed.dashed-h{border-bottom-width:1px;border-top-width:1px;height:33.33%;left:0;top:33.33%;width:100%}.cropper-dashed.dashed-v{border-left-width:1px;border-right-width:1px;height:100%;left:33.33%;top:0;width:33.33%}.cropper-center{display:block;height:0;left:50%;opacity:.75;position:absolute;top:50%;width:0}.cropper-center:before,.cropper-center:after{background-color:#eee;content:' ';display:block;position:absolute}.cropper-center:before{height:1px;left:-3px;top:0;width:7px}.cropper-center:after{height:7px;left:0;top:-3px;width:1px}.cropper-face,.cropper-line,.cropper-point{display:block;height:100%;opacity:.1;position:absolute;width:100%}.cropper-face{background-color:#fff;left:0;top:0}.cropper-line{background-color:#39f}.cropper-line.line-e{cursor:ew-resize;right:-3px;top:0;width:5px}.cropper-line.line-n{cursor:ns-resize;height:5px;left:0;top:-3px}.cropper-line.line-w{cursor:ew-resize;left:-3px;top:0;width:5px}.cropper-line.line-s{bottom:-3px;cursor:ns-resize;height:5px;left:0}.cropper-point{background-color:#39f;height:5px;opacity:.75;width:5px}.cropper-point.point-e{cursor:ew-resize;margin-top:-3px;right:-3px;top:50%}.cropper-point.point-n{cursor:ns-resize;left:50%;margin-left:-3px;top:-3px}.cropper-point.point-w{cursor:ew-resize;left:-3px;margin-top:-3px;top:50%}.cropper-point.point-s{bottom:-3px;cursor:s-resize;left:50%;margin-left:-3px}.cropper-point.point-ne{cursor:nesw-resize;right:-3px;top:-3px}.cropper-point.point-nw{cursor:nwse-resize;left:-3px;top:-3px}.cropper-point.point-sw{bottom:-3px;cursor:nesw-resize;left:-3px}.cropper-point.point-se{bottom:-3px;cursor:nwse-resize;height:20px;opacity:1;right:-3px;width:20px}@media(min-width:768px){.cropper-point.point-se{height:15px;width:15px}}@media(min-width:992px){.cropper-point.point-se{height:10px;width:10px}}@media(min-width:1200px){.cropper-point.point-se{height:5px;opacity:.75;width:5px}}.cropper-point.point-se:before{background-color:#39f;bottom:-50%;content:' ';display:block;height:200%;opacity:0;position:absolute;right:-50%;width:200%}.cropper-invisible{opacity:0}.cropper-hide{display:block;height:0;position:absolute;width:0}.cropper-hidden{display:none!important}.cropper-move{cursor:move}.cropper-crop{cursor:crosshair}.cropper-disabled .cropper-drag-box,.cropper-disabled .cropper-face,.cropper-disabled .cropper-line,.cropper-disabled .cropper-point{cursor:not-allowed}
-#luogu-bg-layer{position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:-10;pointer-events:none;overflow:hidden}
+
+#luogu-bg-layer{position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:0;pointer-events:none;overflow:hidden}
 #luogu-bg-layer .bg-inner{position:absolute;top:-30px;left:-30px;width:calc(100% + 60px);height:calc(100% + 60px);background-size:cover;background-position:center;background-repeat:no-repeat;transition:filter 0.4s ease}
 #luogu-bg-layer video{position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;transition:filter 0.4s ease}
-#luogu-glass-overlay{position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:-5;background:rgba(255,255,255,0.3);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);display:none}
-html, body, #app, .lfe-body { background: transparent !important; }
-main, .main-container, .lside-nav, .main-container.lside-nav { background-color: transparent !important; background-image: none !important; }
-#app-old { background: transparent !important; }
-.theme-page,
-.theme-page::before,
-.theme-page::after,
-.theme-page.no-header,
-.theme-page.no-header::before,
-.theme-page.no-header::after {
-    background-color: transparent !important;
-    background-image: none !important;
-}
+#luogu-glass-overlay{position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:1;background:rgba(255,255,255,0.3);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);display:none}
+
+html, body { background: transparent !important; }
+#app, .lfe-body { background: transparent !important; position: relative; z-index: 2; }
+
+main, .main-container, .lside-nav, .main-container.lside-nav,
+.theme-page, .theme-page.no-header, #app-old { background-color: transparent !important; background-image: none !important; }
+.theme-page::before, .theme-page::after,
+.theme-page.no-header::before, .theme-page.no-header::after { background: none !important; }
 body::before, body::after { background: none !important; }
 
 :root{--lgb-nav-opacity:0.82;--lgb-card-opacity:0.88;--lgb-footer-opacity:0.70}
+
 .top-bar,
 nav.sidebar.lside,
 .user-nav.rside,
@@ -175,11 +164,13 @@ nav.sidebar.lside,
     backdrop-filter: blur(calc((1 - var(--lgb-nav-opacity)) * 8px));
     -webkit-backdrop-filter: blur(calc((1 - var(--lgb-nav-opacity)) * 8px));
 }
+
 footer {
     background-color: rgba(255,255,255,var(--lgb-footer-opacity)) !important;
     backdrop-filter: blur(calc((1 - var(--lgb-footer-opacity)) * 8px));
     -webkit-backdrop-filter: blur(calc((1 - var(--lgb-footer-opacity)) * 8px));
 }
+
 .l-card,
 .lg-article,
 .am-panel,
@@ -197,6 +188,7 @@ div[style*="background-color: rgb(255, 255, 255)"]{background-color:transparent!
 .am-modal-dialog,.dropdown,.am-dropdown-content,.am-selected-content,[class*="dropdown"],.user-nav .dropdown{background-color:rgba(255,255,255,0.98)!important;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
 .search-wrap input{background-color:rgba(255,255,255,0.95)!important}
 .reply-item,.comment-item,.l-card.reply-item{background-color:rgba(255,255,255,0.65)!important}
+
 #luogu-cropper-modal{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:1000000}
 #luogu-cropper-modal .crop-container{background:#fff;border-radius:12px;padding:20px;max-width:95vw;max-height:90vh}
 #luogu-cropper-modal .crop-header{font-size:16px;font-weight:600;margin-bottom:12px;text-align:center}
@@ -206,6 +198,7 @@ div[style*="background-color: rgb(255, 255, 255)"]{background-color:transparent!
 #luogu-cropper-modal button{padding:8px 16px;border:none;border-radius:6px;cursor:pointer;font-size:13px}
 #luogu-cropper-modal .btn-cancel{background:#f0f0f0;color:#333}
 #luogu-cropper-modal .btn-confirm{background:#3498db;color:#fff}
+
 .bg-upload-btn{display:inline-block;padding:6px 12px;background:#f0f0f0;border:1px solid #ddd;border-radius:6px;cursor:pointer;font-size:12px}
 .bg-upload-btn:hover{background:#e0e0e0}
 .bg-image-list{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
@@ -285,16 +278,19 @@ div[style*="background-color: rgb(255, 255, 255)"]{background-color:transparent!
         r.setProperty('--lgb-card-opacity', s.cardOpacity);
         r.setProperty('--lgb-footer-opacity', s.footerOpacity);
     }
+
     function applyAppearance(s) {
         updateVars(s);
         applyFilters(s);
         updateGlassOverlay(s);
     }
+
     async function renderMedia(media, s) {
         const layer = document.getElementById('luogu-bg-layer');
         if (!layer) return;
         const inner = layer.querySelector('.bg-inner');
         if (!inner) return;
+
         layer.querySelectorAll('video').forEach(v => v.remove());
         inner.style.backgroundImage = '';
 
@@ -308,9 +304,7 @@ div[style*="background-color: rgb(255, 255, 255)"]{background-color:transparent!
             } else if (media.type === 'video') {
                 const v = document.createElement('video');
                 v.src = url;
-                v.autoplay = true;
-                v.muted = true;
-                v.playsInline = true;
+                v.autoplay = true; v.muted = true; v.playsInline = true;
                 v.loop = media.loop !== false;
                 v.style.pointerEvents = 'none';
                 layer.appendChild(v);
@@ -360,6 +354,7 @@ div[style*="background-color: rgb(255, 255, 255)"]{background-color:transparent!
         await dbUpdate(media.id, { lastUsed: now });
         await renderMedia(media, s);
     }
+
     async function refreshBackground(s) {
         const allMedia = await dbAllMedia();
         const layer = document.getElementById('luogu-bg-layer');
@@ -618,13 +613,11 @@ div[style*="background-color: rgb(255, 255, 255)"]{background-color:transparent!
 
         panel.querySelector('#article-transparent-check').addEventListener('change', e => {
             settings.articleTransparent = e.target.checked;
-            onChange(settings);
-            saveSettings(settings);
+            onChange(settings); saveSettings(settings);
         });
         panel.querySelector('#global-glass-check').addEventListener('change', e => {
             settings.globalGlass = e.target.checked;
-            onChange(settings);
-            saveSettings(settings);
+            onChange(settings); saveSettings(settings);
         });
         panel.querySelector('#random-bg-check').addEventListener('change', e => {
             settings.randomBg = e.target.checked;
@@ -684,6 +677,7 @@ div[style*="background-color: rgb(255, 255, 255)"]{background-color:transparent!
         const randomCheck = panel.querySelector('#random-bg-check');
         if (randomCheck) randomCheck.checked = s.randomBg;
     }
+
     function menu() {
         const side = document.querySelector('nav.sidebar.lside');
         if (!side) return;
