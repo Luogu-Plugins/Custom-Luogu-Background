@@ -18,9 +18,9 @@
 
 简单来说就是把页面初始的底色透明化，然后在页面最后端固定一个背景板。
 
-### 本地图片上传 & 剪辑
+### 本地图片上传 & 裁剪
 
-这里参考了 @[CrystalCore](https://www.luogu.com.cn/user/1332423) 的 [插件](https://crystalcoreqwq.github.io/post/%E7%BD%91%E9%A1%B5%E8%83%8C%E6%99%AF%E6%9B%B4%E6%8D%A2/)，引入 Cropper.js 库，这个库可以非常方便地实现图片的缩放、拖动、裁剪等操作，简单高效。
+这里参考了 @[CrystalCore](https://www.luogu.com.cn/user/1332423) 的 [插件](https://crystalcoreqwq.github.io/post/%E7%BD%91%E9%A1%B5%E8%83%8C%E6%99%AF%E6%9B%B4%E6%8D%A2/)。起初使用的是 Cropper.js，但它需要通过 CDN 加载：网络不佳时脚本会卡在加载阶段，加载失败时裁剪框不会出现，裁剪窗口里的按钮也会失去响应。现在裁剪界面由脚本自己实现——图片按窗口比例展示，拖动蓝色裁剪框选择区域，确认后用 Canvas 按原图分辨率导出。这样既不依赖外部资源，也不会再出现裁剪框和按钮失效的问题。
 
 ~~上传的图片通过 Cropper.js 库转成 Base64 缓存到本地，但是这里有一个问题：`GM_setValue` 的存储空间通常限制在 $5\text{MB}\sim10\text{MB}$ 之间，但是一张 $4K$ 的图转为 Base64 后很容易膨胀到 $15+\text{MB}$，鄙人不才，不会别的解法，选择了暴力压缩，每次压缩到原先的 $95\%$，直到能够存下。~~
 
